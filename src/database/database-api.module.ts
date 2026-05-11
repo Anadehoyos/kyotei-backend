@@ -19,43 +19,43 @@ import { PaymentMethod } from '../entities/api/catalogs/payment-method.entity';
 import { PaymentProvider } from '../entities/api/catalogs/payment-provider.entity';
 
 const entities = [
-  Organization,
-  Plan,
-  PlanDiscount,
-  Membership,
-  Contract,
-  Supplier,
-  RenewalHistory,
-  Document,
-  SupplierStatus,
-  ContractStatus,
-  Currency,
-  SupplierCategory,
-  PaymentTerm,
-  DocumentType,
-  PaymentMethod,
-  PaymentProvider,
+	Organization,
+	Plan,
+	PlanDiscount,
+	Membership,
+	Contract,
+	Supplier,
+	RenewalHistory,
+	Document,
+	SupplierStatus,
+	ContractStatus,
+	Currency,
+	SupplierCategory,
+	PaymentTerm,
+	DocumentType,
+	PaymentMethod,
+	PaymentProvider,
 ];
 
 @Module({
-  imports: [
-    TypeOrmModule.forRootAsync({
-      name: 'api',
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_API_HOST'),
-        port: config.getOrThrow<number>('DB_API_PORT'),
-        username: config.get('DB_API_USER'),
-        password: config.get('DB_API_PASSWORD'),
-        database: config.get('DB_API_DBNAME'),
-        entities,
-        synchronize: true,
-        logging: true,
-      }),
-    }),
-  ],
-  exports: [TypeOrmModule],
+	imports: [
+		TypeOrmModule.forRootAsync({
+			name: 'api',
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: (config: ConfigService) => ({
+				type: 'postgres',
+				host: config.get('DB_API_HOST'),
+				port: config.getOrThrow<number>('DB_API_PORT'),
+				username: config.get('DB_API_USER'),
+				password: config.get('DB_API_PASSWORD'),
+				database: config.get('DB_API_DBNAME'),
+				entities,
+				synchronize: true,
+				logging: true,
+			}),
+		}),
+	],
+	exports: [TypeOrmModule],
 })
-export class DatabaseApiModule {}
+export class DatabaseApiModule { }

@@ -5,7 +5,11 @@ import { AppController } from './app.controller';
 import { HealthModule } from './modules/health.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, HealthModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    DatabaseModule,
+    HealthModule,
+  ],
   controllers: [AppController],
 })
 export class AppModule {}

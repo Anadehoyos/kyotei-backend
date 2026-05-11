@@ -1,26 +1,34 @@
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { VersioningType } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+	const app = await NestFactory.create(AppModule);
 
-  const config = new DocumentBuilder()
-    .setTitle('SCMS API DOC')
-    .setDescription('API documentation')
-    .setVersion('1.0')
-    .addTag('scms')
-    .build();
+	app.useGlobalPipes(
+		new ValidationPipe({
+			whitelist: true,
+			forbidNonWhitelisted: true,
+			transform: true,
+		}),
+	);
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+	const config = new DocumentBuilder()
+		.setTitle('KYOTEI API DOC')
+		.setDescription('API documentation')
+		.setVersion('1.0')
+		.addTag('kyotei')
+		.build();
 
-  const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  app.enableVersioning({
-    type: VersioningType.URI,
-  });
+	const document = SwaggerModule.createDocument(app, config);
+	SwaggerModule.setup('api', app, document);
+
+	const port = process.env.PORT ?? 3000;
+	app.enableVersioning({
+		type: VersioningType.URI,
+	});
+	await app.listen(port);
+	console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
