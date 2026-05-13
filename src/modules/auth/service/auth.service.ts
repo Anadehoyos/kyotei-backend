@@ -1,34 +1,38 @@
-import { Injectable } from '@nestjs/common';
-import { Repository } from 'typeorm';
-import { Organization } from '../../../entities/api/organizations/organization.entity';
-import { User } from '../../../entities/webapp/users/user.entity';
-import { InjectRepository } from '@nestjs/typeorm';
+import {
+  ConflictException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { RegisterOrganizationAndUser } from '../dto/register-organization-and-user.dto';
+import { OrganizationsService } from '../../organizations/organizations.service';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class AuthService {
-	constructor(
-		@InjectRepository(Organization, 'api')
-		private readonly organizationRepo: Repository<Organization>,
-		@InjectRepository(User, 'webapp')
-		private readonly userRepo: Repository<User>,
-	) { }
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly usersService: UsersService,
+  ) {}
 
-	registerOrganizationAndUser(dto: RegisterOrganizationAndUser) {
-		try {
-			// register organization
-			const countOrganization = this.organizationRepo.findOne({
-				where: { ruc: dto.ruc }
-			});
-			if (!countOrganization) {
+  async registerOrganizationAndUser(dto: RegisterOrganizationAndUser) {
+    try {
+      const existingOrganization = await this.organizationsService.findByRuc(
+        dto.ruc,
+      );
+      if (existingOrganization) {
+        throw new ConflictException('Organization already exists');
+      }
 
-			}
-			// register user
-
-		} catch (error) {
-
-		}
-		return dto;
-	}
+      const existingUser = await this.usersService.findByEmail(dto.email);
+      if (existingUser) {
+        throw new ConflictException('User already exists');
+      }
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Oops something went wrong');
+    }
+  }
 }
-
