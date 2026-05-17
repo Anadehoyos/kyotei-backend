@@ -1,12 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsNumber,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class RegisterOrganizationDto {
   @ApiProperty({ example: 'My Organization' })
@@ -22,8 +16,10 @@ export class RegisterOrganizationDto {
   ruc!: string;
 
   @ApiProperty({ example: '0' })
-  @IsNumber()
-  dv!: number;
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
+  dv!: string;
 
   @ApiProperty({ example: 'user@gmail.com' })
   @IsEmail()
