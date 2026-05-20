@@ -3,9 +3,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseWebappModule } from 'src/database/database-webapp.module';
 import { User } from 'src/entities/webapp/users/user.entity';
 import { UsersService } from './users.service';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
-  imports: [DatabaseWebappModule, TypeOrmModule.forFeature([User], 'webapp')],
+  imports: [
+    DatabaseWebappModule,
+    TypeOrmModule.forFeature([User], 'webapp'),
+    RolesModule,
+  ],
   providers: [UsersService],
   exports: [UsersService],
 })
