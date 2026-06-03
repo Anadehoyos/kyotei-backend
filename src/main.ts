@@ -2,6 +2,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +15,8 @@ async function bootstrap() {
     }),
   );
 
+  app.use(cookieParser());
+
   const config = new DocumentBuilder()
     .setTitle('KYOTEI API DOC')
     .setDescription('API documentation')
@@ -25,10 +28,18 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   const port = process.env.PORT ?? 3000;
+
+  app.enableCors({
+    origin: process.env.WEBAPP_URL,
+    credentials: true,
+  });
+
   app.enableVersioning({
     type: VersioningType.URI,
   });
+
   await app.listen(port);
+
   console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
