@@ -15,6 +15,10 @@ export class OrganizationsService {
     return this.organizationRepo.findOneBy({ ruc });
   }
 
+  findById(id: string) {
+    return this.organizationRepo.findOneBy({ id });
+  }
+
   async create(
     organizationDto: RegisterOrganizationDto,
   ): Promise<Organization> {
