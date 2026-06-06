@@ -37,15 +37,36 @@ const flagCookie = {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
+  @Post('signup')
   @ApiOperation({ summary: 'Register organization and admin user' })
   @ApiResponse({ status: 201, description: 'Registration successful' })
   @ApiResponse({
     status: 409,
     description: 'Organization or user already exists',
   })
-  register(@Body() dto: RegisterOrganizationAndUser) {
-    return this.authService.registerOrganizationAndUser(dto);
+  async register(
+    @Body() dto: RegisterOrganizationAndUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, message } =
+      await this.authService.registerOrganizationAndUser(dto);
+
+    res.cookie('auth_token', accessToken, {
+      ...httpOnlyCookie,
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie('refresh_token', refreshToken, {
+      ...httpOnlyCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie('auth_state', '1', {
+      ...flagCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { message: message };
   }
 
   @Post('login')

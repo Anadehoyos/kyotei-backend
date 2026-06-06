@@ -17,6 +17,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import { SessionsService } from 'src/modules/sessions/sessions.service';
 import { ConfigService } from '@nestjs/config';
+import { User } from 'src/entities/webapp/users/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +28,32 @@ export class AuthService {
     private readonly sessionsService: SessionsService,
     private readonly configService: ConfigService,
   ) {}
+
+  private async issueToken(user: User) {
+    const payload: JwtPayload = {
+      userId: user.id,
+      organizationId: user.organization_id,
+      email: user.email,
+      firstName: user.name,
+      lastName: user.last_name,
+      isActive: user.is_active,
+      role: user.role.name,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = crypto.randomUUID();
+    const expiresAt = new Date(
+      Date.now() +
+        Number(this.configService.getOrThrow('JWT_REFRESH_EXPIRES_IN')),
+    );
+
+    await this.sessionsService.create(user, refreshToken, expiresAt);
+    return {
+      message: 'Login successful',
+      accessToken,
+      refreshToken,
+    };
+  }
 
   async registerOrganizationAndUser(dto: RegisterOrganizationAndUser) {
     let savedOrganization: Organization | undefined;
@@ -63,6 +90,8 @@ export class AuthService {
         savedOrganization.id,
       );
 
+      const token = await this.issueToken(savedUser);
+
       const organizationResponse: OrganizationResponseDto = {
         id: savedOrganization.id,
         name: savedOrganization.name,
@@ -85,6 +114,7 @@ export class AuthService {
       return {
         organization: organizationResponse,
         user: userResponse,
+        ...token,
         message: 'Organization and user registered successfully',
       };
     } catch (error) {
@@ -119,29 +149,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      const payload: JwtPayload = {
-        userId: user.id,
-        organizationId: user.organization_id,
-        email: user.email,
-        firstName: user.name,
-        lastName: user.last_name,
-        isActive: user.is_active,
-        role: user.role.name,
-      };
-
-      const accessToken = this.jwtService.sign(payload);
-      const refreshToken = crypto.randomUUID();
-      const expiresAt = new Date(
-        Date.now() +
-          Number(this.configService.getOrThrow('JWT_REFRESH_EXPIRES_IN')),
-      );
-
-      await this.sessionsService.create(user, refreshToken, expiresAt);
-      return {
-        message: 'Login successful',
-        accessToken,
-        refreshToken,
-      };
+      return await this.issueToken(user);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
