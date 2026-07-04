@@ -17,4 +17,10 @@ export class RolesService {
   findById(id: string) {
     return this.roleRepo.findOneBy({ id });
   }
+
+  findAll() {
+    return this.roleRepo.find({
+      order: { name: 'ASC' },
+    });
+  }
 }

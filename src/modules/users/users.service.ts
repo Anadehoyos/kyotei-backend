@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities/webapp/users/user.entity';
 import { Repository } from 'typeorm';
@@ -38,5 +42,18 @@ export class UsersService {
     user.role = role;
 
     return this.userRepo.save(user);
+  }
+
+  async findByOrganizationId(organizationId: string) {
+    const users = await this.userRepo.find({
+      where: {
+        organization_id: organizationId,
+      },
+      relations: ['role'],
+    });
+    if (!users) {
+      throw new NotFoundException('Users not found');
+    }
+    return users;
   }
 }
