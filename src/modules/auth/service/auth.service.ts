@@ -180,7 +180,7 @@ export class AuthService {
 
       const payload: JwtPayload = {
         userId: session.user.id,
-        organizationId: organization.name,
+        organizationId: organization.id,
         email: session.user.email,
         firstName: session.user.name,
         lastName: session.user.last_name,
