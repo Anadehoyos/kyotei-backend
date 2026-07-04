@@ -67,5 +67,15 @@ import { CatalogsSeeder } from './seeders/catalogs.seeder';
     PaymentProvidersService,
     CatalogsSeeder,
   ],
+  exports: [
+    ContractStatusesService,
+    PaymentMethodsService,
+    PaymentTermsService,
+    SupplierCategoriesService,
+    SupplierStatusesService,
+    CurrenciesService,
+    DocumentTypesService,
+    PaymentProvidersService,
+  ],
 })
 export class CatalogsModule {}
