@@ -4,6 +4,7 @@ import { DatabaseModule } from './database/database.module';
 import { AppController } from './app.controller';
 import { HealthModule } from './modules/health.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
     DatabaseModule,
     HealthModule,
     AuthModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
 })
