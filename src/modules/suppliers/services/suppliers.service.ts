@@ -37,6 +37,25 @@ export class SuppliersService {
     });
   }
 
+  async findOne(
+    organization_id: string,
+    supplier_id: string,
+  ): Promise<Supplier> {
+    const supplier = await this.supplierRepository.findOne({
+      where: {
+        organization: { id: organization_id },
+        id: supplier_id,
+      },
+      relations: ['category', 'status', 'payment_term', 'payment_method'],
+    });
+
+    if (!supplier) {
+      throw new NotFoundException(`Supplier not found`);
+    }
+
+    return supplier;
+  }
+
   async create(
     supplierDto: CreateSupplierDto,
     organization_id: string,
