@@ -15,5 +15,6 @@ import { CatalogsModule } from '../catalogs/catalogs.module';
   ],
   controllers: [SuppliersController],
   providers: [SuppliersService],
+  exports: [SuppliersService],
 })
 export class SuppliersModule {}
