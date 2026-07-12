@@ -24,7 +24,7 @@ import { Document } from 'src/entities/api/documents/document.entity';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
 
 @Injectable()
-export class DocumentsService {
+export class ContractsService {
   private client: S3Client;
   private bucketName: string;
   private maxFileSize: number;
@@ -61,6 +61,44 @@ export class DocumentsService {
       },
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Consultas de contratos y documentos
+  // ---------------------------------------------------------------------------
+
+  async getContracts(organizationId: string): Promise<Contract[]> {
+    const contracts = await this.contractRepository.find({
+      where: { organization: { id: organizationId } },
+      relations: ['organization', 'supplier', 'currency', 'status'],
+    });
+    return contracts;
+  }
+
+  async getDocumentsContractById(contractId: string): Promise<Document[]> {
+    const documentsByContract = await this.documentRepository.find({
+      where: { contract: { id: contractId } },
+      relations: ['contract'],
+    });
+    return documentsByContract;
+  }
+
+  async getDocumentByContractAndDocumentId(
+    contractId: string,
+    documentId: string,
+  ): Promise<Document> {
+    const document = await this.documentRepository.findOne({
+      where: { id: documentId, contract: { id: contractId } },
+      relations: ['contract'],
+    });
+    if (!document) {
+      throw new NotFoundException('Documento no encontrado');
+    }
+    return document;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Carga de documentos
+  // ---------------------------------------------------------------------------
 
   async uploadSingleFile(
     dto: UploadDocumentDto,
@@ -166,6 +204,28 @@ export class DocumentsService {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Descarga de documentos
+  // ---------------------------------------------------------------------------
+
+  async downloadDocument(contractId: string, documentId: string) {
+    const document = await this.getDocumentByContractAndDocumentId(
+      contractId,
+      documentId,
+    );
+    if (!document) {
+      throw new NotFoundException(
+        'No se encontraron documentos para este contrato',
+      );
+    }
+
+    return await this.getPresignedUrl(document.s3_key);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Operaciones sobre S3
+  // ---------------------------------------------------------------------------
+
   async deleteFile(key: string) {
     await this.client.send(
       new DeleteObjectCommand({
@@ -194,8 +254,11 @@ export class DocumentsService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Helpers privados
+  // ---------------------------------------------------------------------------
+
   private sanitizeFilename(filename: string): string {
-    // Separar nombre y extensión
     const lastDot = filename.lastIndexOf('.');
     const hasExtension = lastDot > 0 && lastDot < filename.length - 1;
 
@@ -203,7 +266,6 @@ export class DocumentsService {
     const ext = hasExtension ? filename.slice(lastDot + 1) : '';
 
     // Normalizar unicode → quitar tildes y caracteres especiales
-    // ej: "Ñoño García" → "Nono Garcia"
     const normalizedName = name
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // quitar diacríticos
@@ -227,49 +289,5 @@ export class DocumentsService {
     const safeExt = normalizedExt || '';
 
     return safeExt ? `${safeName}.${safeExt}` : safeName;
-  }
-
-  async getContracts(organizationId: string): Promise<Contract[]> {
-    const contracts = await this.contractRepository.find({
-      where: { organization: { id: organizationId } },
-      relations: ['organization', 'supplier', 'currency', 'status'],
-    });
-    return contracts;
-  }
-
-  async getDocumentsContractById(contractId: string): Promise<Document[]> {
-    const documentsByContract = await this.documentRepository.find({
-      where: { contract: { id: contractId } },
-      relations: ['contract'],
-    });
-    return documentsByContract;
-  }
-
-  async getDocumentByContractAndDocumentId(
-    contractId: string,
-    documentId: string,
-  ): Promise<Document> {
-    const document = await this.documentRepository.findOne({
-      where: { id: documentId, contract: { id: contractId } },
-      relations: ['contract'],
-    });
-    if (!document) {
-      throw new NotFoundException('Documento no encontrado');
-    }
-    return document;
-  }
-
-  async downloadDocument(contractId: string, documentId: string) {
-    const document = await this.getDocumentByContractAndDocumentId(
-      contractId,
-      documentId,
-    );
-    if (!document) {
-      throw new NotFoundException(
-        'No se encontraron documentos para este contrato',
-      );
-    }
-
-    return await this.getPresignedUrl(document.s3_key);
   }
 }

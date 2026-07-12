@@ -4,11 +4,16 @@ import { HealthService } from './health.service';
 import { AuthModule } from './auth/auth.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
-import { DocumentsModule } from './documents/documents.module';
+import { ContractsModule } from './contracts/contracts.module';
 
 @Module({
   controllers: [HealthController],
   providers: [HealthService],
-  imports: [AuthModule, SuppliersModule, CatalogsModule, DocumentsModule],
+  imports: [
+    AuthModule,
+    SuppliersModule,
+    CatalogsModule,
+    ContractsModule,
+  ],
 })
 export class HealthModule {}

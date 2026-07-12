@@ -22,14 +22,14 @@ import {
 import type { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import { User } from 'src/modules/auth/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { DocumentsService } from '../service/documents.service';
+import { ContractsService } from '../service/contracts.service';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
 
-@ApiTags('documents')
-@Controller('documents')
+@ApiTags('contracts')
+@Controller('contracts')
 @UseGuards(JwtAuthGuard)
-export class DocumentController {
-  constructor(private readonly documentService: DocumentsService) {}
+export class ContractsController {
+  constructor(private readonly contractsService: ContractsService) {}
 
   @Post()
   @ApiOperation({
@@ -56,7 +56,7 @@ export class DocumentController {
     )
     file: Express.Multer.File,
   ) {
-    return await this.documentService.uploadSingleFile(
+    return await this.contractsService.uploadSingleFile(
       dto,
       user.organizationId,
       user.userId,
@@ -70,8 +70,8 @@ export class DocumentController {
   })
   @ApiResponse({ status: 200, description: 'List of contracts' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getDocuments(@User() user: JwtPayload) {
-    return await this.documentService.getContracts(user.organizationId);
+  async getContracts(@User() user: JwtPayload) {
+    return await this.contractsService.getContracts(user.organizationId);
   }
 
   @Get(':contractId')
@@ -84,7 +84,7 @@ export class DocumentController {
   @ApiResponse({ status: 200, description: 'List of documents' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getDocumentsByContract(@Param('contractId') contractId: string) {
-    return await this.documentService.getDocumentsContractById(contractId);
+    return await this.contractsService.getDocumentsContractById(contractId);
   }
 
   @Get(':contractId/download/:documentId')
@@ -108,7 +108,6 @@ export class DocumentController {
     @Param('contractId') contractId: string,
     @Param('documentId') documentId: string,
   ) {
-    return await this.documentService.downloadDocument(contractId, documentId);
+    return await this.contractsService.downloadDocument(contractId, documentId);
   }
-
 }
