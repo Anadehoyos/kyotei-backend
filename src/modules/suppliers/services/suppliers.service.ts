@@ -1,7 +1,6 @@
 import {
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +13,7 @@ import { SupplierStatusesService } from 'src/modules/catalogs/services/supplier-
 import { PaymentMethodsService } from 'src/modules/catalogs/services/payment-methods.service';
 import { PaymentTermsService } from 'src/modules/catalogs/services/payment-terms.service';
 import { Organization } from 'src/entities/api/organizations/organization.entity';
+import { UpdateSupplierDto } from '../dto/update-supplier.dto';
 
 @Injectable()
 export class SuppliersService {
@@ -126,20 +126,51 @@ export class SuppliersService {
     };
   }
 
-  async update(id: string, supplier: Supplier): Promise<Supplier> {
-    if (id.length === 0) {
-      throw new InternalServerErrorException('Supplier must be provided');
+  async update(
+    supplierId: string,
+    organizationId: string,
+    updateSupplierDto: UpdateSupplierDto,
+  ): Promise<Supplier> {
+    const supplier = await this.findOne(organizationId, supplierId);
+
+    // Campos escalares editables (ruc y dv no son actualizables).
+    if (updateSupplierDto.name !== undefined) {
+      supplier.name = updateSupplierDto.name;
+    }
+    if (updateSupplierDto.phone !== undefined) {
+      supplier.phone = updateSupplierDto.phone;
+    }
+    if (updateSupplierDto.country !== undefined) {
+      supplier.country = updateSupplierDto.country;
     }
 
-    await this.supplierRepository.update(id, supplier);
-
-    const updatedSupplier = await this.supplierRepository.findOneBy({ id });
-
-    if (!updatedSupplier) {
-      throw new NotFoundException(`Supplier not found`);
+    // Relaciones: se resuelven desde el catálogo cuando llega el *_id.
+    if (updateSupplierDto.category_id) {
+      supplier.category = await this.categorySupplierService.findOne(
+        updateSupplierDto.category_id,
+        organizationId,
+      );
+    }
+    if (updateSupplierDto.status_id) {
+      supplier.status = await this.statusSupplierService.findOne(
+        updateSupplierDto.status_id,
+        organizationId,
+      );
+    }
+    if (updateSupplierDto.payment_term_id) {
+      supplier.payment_term = await this.paymentTermService.findOne(
+        updateSupplierDto.payment_term_id,
+        organizationId,
+      );
+    }
+    if (updateSupplierDto.payment_method_id) {
+      supplier.payment_method = await this.paymentMethodService.findOne(
+        updateSupplierDto.payment_method_id,
+        organizationId,
+      );
     }
 
-    return updatedSupplier;
+    return await this.supplierRepository.save(supplier);
   }
 
   async delete(id: string): Promise<void> {
