@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { HealthModule } from './modules/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ContractsModule } from './modules/contracts/contracts.module';
     HealthModule,
     AuthModule,
     ContractsModule,
+    AlertsModule,
   ],
   controllers: [AppController],
 })
