@@ -5,8 +5,9 @@ import { User } from '../entities/webapp/users/user.entity';
 import { Role } from '../entities/webapp/roles/role.entity';
 import { Permission } from '../entities/webapp/permissions/permission.entity';
 import { Session } from '../entities/webapp/sessions/session.entity';
+import { ActivationToken } from '../entities/webapp/invitation/activation-token.entity';
 
-const entities = [User, Role, Permission, Session];
+const entities = [User, Role, Permission, Session, ActivationToken];
 
 @Module({
   imports: [
