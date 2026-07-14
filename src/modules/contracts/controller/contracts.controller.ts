@@ -20,18 +20,21 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { JwtPayload } from 'src/common/interface/jwt-payload.interface';
+import { RequirePermissions } from 'src/modules/auth/decorators/permission.decorator';
 import { User } from 'src/modules/auth/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from 'src/modules/auth/guards/permission.guard';
 import { ContractsService } from '../service/contracts.service';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
 
 @ApiTags('contracts')
 @Controller('contracts')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
 
   @Post()
+  @RequirePermissions('crear_contrato', 'subir_documentos')
   @ApiOperation({
     summary: 'Upload a PDF document and create its contract',
   })
@@ -65,6 +68,7 @@ export class ContractsController {
   }
 
   @Get()
+  @RequirePermissions('ver_contratos')
   @ApiOperation({
     summary: 'List contracts of the current organization',
   })
@@ -75,6 +79,7 @@ export class ContractsController {
   }
 
   @Get(':contractId')
+  @RequirePermissions('ver_detalle_contrato', 'ver_documentos')
   @ApiOperation({ summary: 'List documents of a contract' })
   @ApiParam({
     name: 'contractId',
@@ -88,6 +93,7 @@ export class ContractsController {
   }
 
   @Get(':contractId/download/:documentId')
+  @RequirePermissions('ver_documentos')
   @ApiOperation({
     summary: 'Get a presigned download URL for a document',
   })

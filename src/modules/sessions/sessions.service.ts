@@ -22,7 +22,7 @@ export class SessionsService {
   findByToken(token: string): Promise<Session | null> {
     return this.sessionRepo.findOne({
       where: { token },
-      relations: ['user', 'user.role'],
+      relations: ['user', 'user.role', 'user.role.permissions'],
     });
   }
 

@@ -2,7 +2,7 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('permissions')
 export class Permission {
-	@PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid')
 	id: string;
 
 	@Column({ length: 100 })

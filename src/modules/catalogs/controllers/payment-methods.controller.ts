@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from 'src/modules/auth/guards/permission.guard';
+import { RequirePermissions } from 'src/modules/auth/decorators/permission.decorator';
 import { User } from 'src/modules/auth/decorators/user.decorator';
 import type { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import {
@@ -21,7 +23,7 @@ import {
 import { PaymentMethodsService } from '../services/payment-methods.service';
 
 @ApiTags('catalogs')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('catalogs/payment-methods')
 export class PaymentMethodsController {
   constructor(private readonly service: PaymentMethodsService) {}
@@ -42,6 +44,7 @@ export class PaymentMethodsController {
   }
 
   @Post()
+  @RequirePermissions('configurar_catalogos')
   @ApiOperation({ summary: 'Create a payment method' })
   @ApiResponse({ status: 201, description: 'Payment method created' })
   create(@Body() dto: CreateCatalogEntryDto, @User() user: JwtPayload) {
@@ -49,6 +52,7 @@ export class PaymentMethodsController {
   }
 
   @Patch(':id')
+  @RequirePermissions('configurar_catalogos')
   @ApiOperation({ summary: 'Update a payment method' })
   @ApiResponse({ status: 200, description: 'Payment method updated' })
   @ApiResponse({ status: 404, description: 'Payment method not found' })
@@ -61,6 +65,7 @@ export class PaymentMethodsController {
   }
 
   @Delete(':id')
+  @RequirePermissions('configurar_catalogos')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a payment method' })
   @ApiResponse({ status: 204, description: 'Payment method deleted' })

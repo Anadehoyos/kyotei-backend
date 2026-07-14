@@ -30,16 +30,7 @@ export class AuthService {
   ) {}
 
   private async issueToken(user: User) {
-    const payload: JwtPayload = {
-      userId: user.id,
-      organizationId: user.organization_id,
-      email: user.email,
-      firstName: user.name,
-      lastName: user.last_name,
-      isActive: user.is_active,
-      role: user.role.name,
-    };
-
+    const payload: JwtPayload = this.buildPayload(user);
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = crypto.randomUUID();
     const expiresAt = new Date(
@@ -170,23 +161,8 @@ export class AuthService {
         throw new UnauthorizedException('Refresh token expired');
       }
 
-      const organization = await this.organizationsService.findById(
-        session?.user.organization_id,
-      );
+      const payload: JwtPayload = this.buildPayload(session.user);
 
-      if (!organization) {
-        throw new UnauthorizedException('Organization not found');
-      }
-
-      const payload: JwtPayload = {
-        userId: session.user.id,
-        organizationId: organization.id,
-        email: session.user.email,
-        firstName: session.user.name,
-        lastName: session.user.last_name,
-        isActive: session.user.is_active,
-        role: session.user.role.name,
-      };
       const accessToken = this.jwtService.sign(payload);
       return { accessToken };
     } catch (error) {
@@ -200,5 +176,18 @@ export class AuthService {
   async logout(token: string) {
     await this.sessionsService.deleteByToken(token);
     return { message: 'Logged out successfully' };
+  }
+
+  private buildPayload(user: User): JwtPayload {
+    return {
+      userId: user.id,
+      organizationId: user.organization_id,
+      email: user.email,
+      firstName: user.name,
+      lastName: user.last_name,
+      isActive: user.is_active,
+      role: user.role.name,
+      permissions: user.role.permissions.map((perm) => perm.name),
+    };
   }
 }

@@ -6,4 +6,5 @@ export interface JwtPayload {
   lastName: string;
   isActive: boolean;
   role: string;
+  permissions: string[];
 }

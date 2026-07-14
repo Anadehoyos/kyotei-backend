@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from 'src/modules/auth/guards/permission.guard';
+import { RequirePermissions } from 'src/modules/auth/decorators/permission.decorator';
 import { User } from 'src/modules/auth/decorators/user.decorator';
 import type { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import {
@@ -21,7 +23,7 @@ import {
 import { PaymentTermsService } from '../services/payment-terms.service';
 
 @ApiTags('catalogs')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('catalogs/payment-terms')
 export class PaymentTermsController {
   constructor(private readonly service: PaymentTermsService) {}
@@ -42,6 +44,7 @@ export class PaymentTermsController {
   }
 
   @Post()
+  @RequirePermissions('configurar_catalogos')
   @ApiOperation({ summary: 'Create a payment term' })
   @ApiResponse({ status: 201, description: 'Payment term created' })
   create(@Body() dto: CreateCatalogEntryDto, @User() user: JwtPayload) {
@@ -49,6 +52,7 @@ export class PaymentTermsController {
   }
 
   @Patch(':id')
+  @RequirePermissions('configurar_catalogos')
   @ApiOperation({ summary: 'Update a payment term' })
   @ApiResponse({ status: 200, description: 'Payment term updated' })
   @ApiResponse({ status: 404, description: 'Payment term not found' })
@@ -61,6 +65,7 @@ export class PaymentTermsController {
   }
 
   @Delete(':id')
+  @RequirePermissions('configurar_catalogos')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a payment term' })
   @ApiResponse({ status: 204, description: 'Payment term deleted' })
