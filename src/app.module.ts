@@ -6,6 +6,7 @@ import { HealthModule } from './modules/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
     AuthModule,
     ContractsModule,
     AlertsModule,
+    MailModule,
   ],
   controllers: [AppController],
 })

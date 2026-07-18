@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import type { Request, Response } from 'express';
 import type { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import { User } from '../decorators/user.decorator';
+import { ActivateUserDto } from '../dto/activate-user.dto';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -79,20 +80,7 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken } = await this.authService.userLogin(dto);
 
-    res.cookie('auth_token', accessToken, {
-      ...httpOnlyCookie,
-      maxAge: 15 * 60 * 1000,
-    });
-
-    res.cookie('refresh_token', refreshToken, {
-      ...httpOnlyCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.cookie('auth_state', '1', {
-      ...flagCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    this.buildTokenResponse(accessToken, refreshToken, res);
 
     return { message: 'Login Successful' };
   }
@@ -133,6 +121,23 @@ export class AuthController {
     return { message: 'Token refreshed' };
   }
 
+  @Post('activate')
+  @ApiOperation({ summary: 'Activate user account using activation token' })
+  @ApiResponse({ status: 200, description: 'Account activated successfully' })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired activation token',
+  })
+  async activate(
+    @Body() dto: ActivateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } =
+      await this.authService.activateUser(dto);
+    this.buildTokenResponse(accessToken, refreshToken, res);
+    return { message: 'Account activated successfully' };
+  }
+
   @Delete('logout')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Logout and invalidate refresh token' })
@@ -147,5 +152,26 @@ export class AuthController {
     res.clearCookie('refresh_token');
     res.clearCookie('auth_state');
     return { message: 'Logout Successful' };
+  }
+
+  private buildTokenResponse(
+    accessToken: string,
+    refreshToken: string,
+    res: Response,
+  ) {
+    res.cookie('auth_token', accessToken, {
+      ...httpOnlyCookie,
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie('refresh_token', refreshToken, {
+      ...httpOnlyCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie('auth_state', '1', {
+      ...flagCookie,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
   }
 }

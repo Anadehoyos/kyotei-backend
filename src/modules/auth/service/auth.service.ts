@@ -18,12 +18,22 @@ import { JwtPayload } from 'src/common/interface/jwt-payload.interface';
 import { SessionsService } from 'src/modules/sessions/sessions.service';
 import { ConfigService } from '@nestjs/config';
 import { User } from 'src/entities/webapp/users/user.entity';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { ActivationToken } from 'src/entities/webapp/invitation/activation-token.entity';
+import { DataSource, IsNull, MoreThan, Repository } from 'typeorm';
+import { ActivateUserDto } from '../dto/activate-user.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly organizationsService: OrganizationsService,
+    @InjectDataSource('webapp')
+    private readonly webappDataSource: DataSource,
+    @InjectRepository(User, 'webapp')
+    private readonly usersRepository: Repository<User>,
+    @InjectRepository(ActivationToken, 'webapp')
+    private readonly activationTokenRepo: Repository<ActivationToken>,
     private readonly usersService: UsersService,
+    private readonly organizationsService: OrganizationsService,
     private readonly jwtService: JwtService,
     private readonly sessionsService: SessionsService,
     private readonly configService: ConfigService,
@@ -147,6 +157,44 @@ export class AuthService {
       }
       throw new UnauthorizedException('Invalid credentials');
     }
+  }
+
+  async activateUser(activeUserDto: ActivateUserDto) {
+    const isActiveToken = await this.activationTokenRepo.findOne({
+      where: {
+        token: activeUserDto.token,
+        expires_at: MoreThan(new Date()),
+        used_at: IsNull(),
+      },
+      relations: ['user', 'user.role', 'user.role.permissions'],
+    });
+
+    if (!isActiveToken) {
+      throw new UnauthorizedException('Invalid or expired activation token');
+    }
+
+    const user = isActiveToken.user;
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired activation token');
+    }
+
+    await this.webappDataSource.transaction(
+      async (transactionalEntityManager) => {
+        user.password_hash = await bcrypt.hash(activeUserDto.password, 12);
+        user.is_active = true;
+
+        await transactionalEntityManager.save(user);
+
+        await transactionalEntityManager.update(
+          ActivationToken,
+          { token: activeUserDto.token },
+          { used_at: new Date() },
+        );
+      },
+    );
+
+    return await this.issueToken(user);
   }
 
   async refreshToken(refreshToken: string) {

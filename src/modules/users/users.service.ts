@@ -3,21 +3,26 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities/webapp/users/user.entity';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { RegisterUserDto } from './dto/register-user.dto';
 import * as bcrypt from 'bcrypt';
 import { RolesService } from '../roles/roles.service';
 import { Role } from 'src/entities/webapp/roles/role.entity';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { ActivationToken } from 'src/entities/webapp/invitation/activation-token.entity';
+import { MailService } from '../mail/service/mail.service';
 
 @Injectable()
 export class UsersService {
   constructor(
+    @InjectDataSource('webapp')
+    private readonly dataSource: DataSource,
     @InjectRepository(User, 'webapp')
     private readonly userRepo: Repository<User>,
     private readonly rolesService: RolesService,
+    private readonly mailService: MailService,
   ) {}
 
   findByEmail(email: string) {
@@ -31,7 +36,6 @@ export class UsersService {
     userDto: RegisterUserDto,
     organizationId: string,
   ): Promise<User> {
-
     const role = await this.rolesService.findByName('admin');
 
     if (!role) {
@@ -52,22 +56,42 @@ export class UsersService {
   async invite(
     userInvite: InviteUserDto,
     organizationId: string,
-  ): Promise<User> {
+  ): Promise<{ message: string }> {
     const role = await this.rolesService.findById(userInvite.roleId);
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    return this.persistUser({
-      email: userInvite.email,
-      name: userInvite.first_name,
-      last_name: userInvite.last_name,
-      organization_id: organizationId,
-      role: role,
-      password_hash: await bcrypt.hash(crypto.randomUUID(), 12),
-      is_active: false,
+    const activationToken = crypto.randomUUID();
+
+    await this.dataSource.transaction(async (transactionalEntityManager) => {
+      const user = await this.persistUser(
+        {
+          email: userInvite.email,
+          name: userInvite.first_name,
+          last_name: userInvite.last_name,
+          organization_id: organizationId,
+          role: role,
+          password_hash: await bcrypt.hash(crypto.randomUUID(), 12),
+          is_active: false,
+        },
+        transactionalEntityManager,
+      );
+
+      await transactionalEntityManager.save(ActivationToken, {
+        token: activationToken,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        user: { id: user.id },
+      });
     });
+
+    await this.mailService.sendActivationMail(
+      userInvite.email,
+      activationToken,
+    );
+
+    return { message: 'Invitation sent successfully' };
   }
 
   async findByOrganizationId(organizationId: string) {
@@ -83,15 +107,18 @@ export class UsersService {
     return users;
   }
 
-  private persistUser(data: {
-    email: string;
-    name: string;
-    last_name: string;
-    organization_id: string;
-    role: Role;
-    password_hash: string;
-    is_active: boolean;
-  }): Promise<User> {
+  private persistUser(
+    data: {
+      email: string;
+      name: string;
+      last_name: string;
+      organization_id: string;
+      role: Role;
+      password_hash: string;
+      is_active: boolean;
+    },
+    entityManager?: EntityManager,
+  ): Promise<User> {
     const user = new User();
 
     user.email = data.email;
@@ -102,6 +129,8 @@ export class UsersService {
     user.password_hash = data.password_hash;
     user.is_active = data.is_active;
 
-    return this.userRepo.save(user);
+    return entityManager
+      ? entityManager.save<User>(user)
+      : this.userRepo.save(user);
   }
 }

@@ -6,6 +6,7 @@ import { SuppliersModule } from './suppliers/suppliers.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   controllers: [HealthController],
@@ -16,6 +17,7 @@ import { AlertsModule } from './alerts/alerts.module';
     CatalogsModule,
     ContractsModule,
     AlertsModule,
+    MailModule,
   ],
 })
 export class HealthModule {}

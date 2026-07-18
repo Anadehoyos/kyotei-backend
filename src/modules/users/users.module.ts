@@ -5,12 +5,14 @@ import { User } from 'src/entities/webapp/users/user.entity';
 import { UsersService } from './users.service';
 import { RolesModule } from '../roles/roles.module';
 import { UserController } from './user.controller';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     DatabaseWebappModule,
     TypeOrmModule.forFeature([User], 'webapp'),
     RolesModule,
+    MailModule,
   ],
   providers: [UsersService],
   exports: [UsersService],

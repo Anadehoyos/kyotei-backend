@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './controller/auth.controller';
 import { AuthService } from './service/auth.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -8,9 +9,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SessionsModule } from '../sessions/sessions.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
+import { DatabaseWebappModule } from 'src/database/database-webapp.module';
+import { User } from 'src/entities/webapp/users/user.entity';
+import { ActivationToken } from 'src/entities/webapp/invitation/activation-token.entity';
 
 @Module({
   imports: [
+    DatabaseWebappModule,
+    TypeOrmModule.forFeature([User, ActivationToken], 'webapp'),
     OrganizationsModule,
     UsersModule,
     JwtModule.registerAsync({

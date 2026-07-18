@@ -13,5 +13,6 @@ import { Document } from 'src/entities/api/documents/document.entity';
   ],
   providers: [ContractsService],
   controllers: [ContractsController],
+  exports: [ContractsService],
 })
 export class ContractsModule {}
