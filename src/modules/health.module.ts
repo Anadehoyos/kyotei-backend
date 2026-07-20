@@ -7,6 +7,8 @@ import { CatalogsModule } from './catalogs/catalogs.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { MailModule } from './mail/mail.module';
+import { ReportsModule } from './reports/reports.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   controllers: [HealthController],
@@ -18,6 +20,8 @@ import { MailModule } from './mail/mail.module';
     ContractsModule,
     AlertsModule,
     MailModule,
+    ReportsModule,
+    PermissionsModule,
   ],
 })
 export class HealthModule {}
