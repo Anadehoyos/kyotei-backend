@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseFilePipe,
+  Patch,
   Post,
   UploadedFile,
   UseGuards,
@@ -26,6 +27,7 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/modules/auth/guards/permission.guard';
 import { ContractsService } from '../service/contracts.service';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
+import { UpdateContractDto } from '../dto/update-contract.dto';
 
 @ApiTags('contracts')
 @Controller('contracts')
@@ -78,8 +80,8 @@ export class ContractsController {
     return await this.contractsService.getContracts(user.organizationId);
   }
 
-  @Get(':contractId')
-  @RequirePermissions('ver_detalle_contrato', 'ver_documentos')
+  @Get(':contractId/documents')
+  @RequirePermissions('ver_documentos')
   @ApiOperation({ summary: 'List documents of a contract' })
   @ApiParam({
     name: 'contractId',
@@ -90,6 +92,61 @@ export class ContractsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getDocumentsByContract(@Param('contractId') contractId: string) {
     return await this.contractsService.getDocumentsContractById(contractId);
+  }
+
+  @Patch(':contractId')
+  @RequirePermissions('editar_contrato')
+  @ApiOperation({ summary: 'Update a contract' })
+  @ApiParam({
+    name: 'contractId',
+    description: 'Contract identifier (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiBody({ type: UpdateContractDto })
+  @ApiResponse({ status: 200, description: 'Contract updated' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async updateContract(
+    @Param('contractId') contractId: string,
+    @Body() dto: UpdateContractDto,
+    @User() user: JwtPayload,
+  ) {
+    return await this.contractsService.updateContract(
+      contractId,
+      dto,
+      user.organizationId,
+    );
+  }
+
+  @Post(':contractId/renew')
+  @RequirePermissions('editar_contrato')
+  @ApiOperation({ summary: 'Renew a contract' })
+  @ApiParam({
+    name: 'contractId',
+    description: 'Contract identifier (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiBody({ type: UpdateContractDto })
+  @ApiResponse({ status: 200, description: 'Contract renewed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @UseInterceptors(FileInterceptor('file'))
+  async renewContract(
+    @Param('contractId') contractId: string,
+    @Body() dto: UploadDocumentDto,
+    @User() user: JwtPayload,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new FileTypeValidator({ fileType: 'application/pdf' })],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return await this.contractsService.uploadSingleFile(
+      dto,
+      user.organizationId,
+      user.userId,
+      file,
+    );
   }
 
   @Get(':contractId/download/:documentId')

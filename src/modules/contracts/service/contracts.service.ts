@@ -18,10 +18,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { SuppliersService } from '../../suppliers/services/suppliers.service';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, DeepPartial, In, Repository } from 'typeorm';
 import { Contract } from 'src/entities/api/contracts/contract.entity';
 import { Document } from 'src/entities/api/documents/document.entity';
+import { Currency } from 'src/entities/api/catalogs/currency.entity';
+import { ContractStatus } from 'src/entities/api/catalogs/contract-status.entity';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
+import { User } from 'src/entities/webapp/users/user.entity';
+import { UpdateContractDto } from '../dto/update-contract.dto';
 
 @Injectable()
 export class ContractsService {
@@ -35,6 +39,8 @@ export class ContractsService {
     private readonly contractRepository: Repository<Contract>,
     @InjectRepository(Document, 'api')
     private readonly documentRepository: Repository<Document>,
+    @InjectRepository(User, 'webapp')
+    private readonly userRepository: Repository<User>,
     @InjectDataSource('api')
     private readonly dataSource: DataSource,
   ) {
@@ -69,9 +75,35 @@ export class ContractsService {
   async getContracts(organizationId: string): Promise<Contract[]> {
     const contracts = await this.contractRepository.find({
       where: { organization: { id: organizationId } },
-      relations: ['organization', 'supplier', 'currency', 'status'],
+      relations: [
+        'organization',
+        'supplier',
+        'supplier.category',
+        'currency',
+        'status',
+      ],
     });
-    return contracts;
+
+    const ownerId = [
+      ...new Set(contracts.map((contract) => contract.owner_id)),
+    ];
+
+    const owner = await this.userRepository.find({
+      where: { id: In(ownerId) },
+    });
+
+    const ownerById = new Map(owner.map((user) => [user.id, user]));
+
+    return contracts.map((c) => ({
+      ...c,
+      owner: ownerById.get(c.owner_id)
+        ? {
+            id: c.owner_id,
+            name: ownerById.get(c.owner_id)!.name,
+            last_name: ownerById.get(c.owner_id)!.last_name,
+          }
+        : null,
+    }));
   }
 
   async getDocumentsContractById(contractId: string): Promise<Document[]> {
@@ -202,6 +234,93 @@ export class ContractsService {
       url: (await this.getPresignedUrl(key)).url,
       key,
     };
+  }
+
+  async updateContract(
+    contractId: string,
+    dto: UpdateContractDto,
+    organizationId: string,
+  ) {
+    const contract = await this.contractRepository.findOne({
+      where: { id: contractId, organization: { id: organizationId } },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    const changes: DeepPartial<Contract> = {};
+
+    if (dto.title !== undefined) {
+      changes.title = dto.title;
+    }
+    if (dto.amount !== undefined) {
+      changes.amount = dto.amount;
+    }
+    if (dto.start_date !== undefined) {
+      changes.start_date = new Date(dto.start_date);
+    }
+    if (dto.end_date !== undefined) {
+      changes.end_date = new Date(dto.end_date);
+    }
+
+    // Validamos que las relaciones referenciadas existan antes de guardar; de lo
+    // contrario un id inexistente reventaría con un error de FK (500) en vez de
+    // un 404 limpio.
+    if (dto.supplier_id !== undefined) {
+      await this.suppliersService.findOne(organizationId, dto.supplier_id);
+      changes.supplier = { id: dto.supplier_id };
+    }
+    if (dto.currency_id !== undefined) {
+      const currency = await this.dataSource
+        .getRepository(Currency)
+        .findOneBy({ id: dto.currency_id });
+      if (!currency) {
+        throw new NotFoundException('Currency not found');
+      }
+      changes.currency = { id: dto.currency_id };
+    }
+    if (dto.status_id !== undefined) {
+      const status = await this.dataSource
+        .getRepository(ContractStatus)
+        .findOneBy({ id: dto.status_id });
+      if (!status) {
+        throw new NotFoundException('Contract status not found');
+      }
+      changes.status = { id: dto.status_id };
+    }
+
+    this.contractRepository.merge(contract, changes);
+    await this.contractRepository.save(contract);
+
+    // Devolvemos el contrato con sus relaciones cargadas (consistente con
+    // GET /contracts), en vez de dejar supplier/currency/status como { id }.
+    return this.contractRepository.findOne({
+      where: { id: contractId },
+      relations: [
+        'organization',
+        'supplier',
+        'supplier.category',
+        'currency',
+        'status',
+      ],
+    });
+  }
+
+  async updateContractStatus(
+    contractId: string,
+    statusId: string,
+    organizationId: string,
+  ) {
+    const contract = await this.contractRepository.findOne({
+      where: { id: contractId, organization: { id: organizationId } },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contrato no encontrado');
+    }
+
+    return await this.contractRepository.save(contract);
   }
 
   // ---------------------------------------------------------------------------
