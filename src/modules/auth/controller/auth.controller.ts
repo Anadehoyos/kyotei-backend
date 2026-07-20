@@ -52,20 +52,7 @@ export class AuthController {
     const { accessToken, refreshToken, message } =
       await this.authService.registerOrganizationAndUser(dto);
 
-    res.cookie('auth_token', accessToken, {
-      ...httpOnlyCookie,
-      maxAge: 15 * 60 * 1000,
-    });
-
-    res.cookie('refresh_token', refreshToken, {
-      ...httpOnlyCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.cookie('auth_state', '1', {
-      ...flagCookie,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    this.buildTokenResponse(accessToken, refreshToken, res);
 
     return { message: message };
   }
