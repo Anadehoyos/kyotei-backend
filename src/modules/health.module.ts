@@ -9,6 +9,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { MailModule } from './mail/mail.module';
 import { ReportsModule } from './reports/reports.module';
 import { PermissionsModule } from './permissions/permissions.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   controllers: [HealthController],
@@ -22,6 +23,7 @@ import { PermissionsModule } from './permissions/permissions.module';
     MailModule,
     ReportsModule,
     PermissionsModule,
+    RolesModule,
   ],
 })
 export class HealthModule {}

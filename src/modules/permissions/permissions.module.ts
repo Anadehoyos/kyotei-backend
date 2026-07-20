@@ -5,13 +5,14 @@ import { Permission } from 'src/entities/webapp/permissions/permission.entity';
 import { Role } from 'src/entities/webapp/roles/role.entity';
 import { PermissionsService } from './permissions.service';
 import { PermissionsController } from './permissions.controller';
+import { PermissionsSeeder } from './seeders/permissions.seeder';
 
 @Module({
   imports: [
     DatabaseWebappModule,
     TypeOrmModule.forFeature([Permission, Role], 'webapp'),
   ],
-  providers: [PermissionsService],
+  providers: [PermissionsService, PermissionsSeeder],
   exports: [PermissionsService],
   controllers: [PermissionsController],
 })
