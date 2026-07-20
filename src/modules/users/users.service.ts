@@ -33,6 +33,10 @@ export class UsersService {
     });
   }
 
+  delete(id: string) {
+    return this.userRepo.delete(id);
+  }
+
   async create(
     userDto: RegisterUserDto,
     organizationId: string,

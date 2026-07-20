@@ -3,6 +3,7 @@ import {
   HttpException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterOrganizationAndUser } from '../dto/register-organization-and-user.dto';
@@ -58,6 +59,7 @@ export class AuthService {
 
   async registerOrganizationAndUser(dto: RegisterOrganizationAndUser) {
     let savedOrganization: Organization | undefined;
+    let savedUser: User | undefined;
 
     try {
       const existingOrganization = await this.organizationsService.findByRuc(
@@ -81,7 +83,7 @@ export class AuthService {
         contact_email: dto.contact_email,
       });
 
-      const savedUser = await this.usersService.create(
+      savedUser = await this.usersService.create(
         {
           email: dto.email,
           password: dto.password,
@@ -119,8 +121,22 @@ export class AuthService {
         message: 'Organization and user registered successfully',
       };
     } catch (error) {
+      // Saga: se deshace en orden inverso a la creación (usuario, luego org) y
+      // cada borrado es best-effort para no enmascarar el error original.
+      if (savedUser) {
+        try {
+          await this.usersService.delete(savedUser.id);
+        } catch (cleanupError) {
+          Logger.error(`Error al revertir usuario: ${cleanupError}`);
+        }
+      }
+
       if (savedOrganization) {
-        await this.organizationsService.delete(savedOrganization.id);
+        try {
+          await this.organizationsService.delete(savedOrganization.id);
+        } catch (cleanupError) {
+          Logger.error(`Error al revertir organización: ${cleanupError}`);
+        }
       }
 
       if (error instanceof HttpException) {
