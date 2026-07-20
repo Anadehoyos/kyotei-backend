@@ -28,6 +28,7 @@ import { PermissionsGuard } from 'src/modules/auth/guards/permission.guard';
 import { ContractsService } from '../service/contracts.service';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
 import { UpdateContractDto } from '../dto/update-contract.dto';
+import { RenewContractDto } from '../dto/renew-contract.dto';
 
 @ApiTags('contracts')
 @Controller('contracts')
@@ -118,20 +119,22 @@ export class ContractsController {
   }
 
   @Post(':contractId/renew')
-  @RequirePermissions('editar_contrato')
+  @RequirePermissions('renovar_contrato')
   @ApiOperation({ summary: 'Renew a contract' })
   @ApiParam({
     name: 'contractId',
     description: 'Contract identifier (UUID)',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiBody({ type: UpdateContractDto })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ type: RenewContractDto })
   @ApiResponse({ status: 200, description: 'Contract renewed' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Contract not found' })
   @UseInterceptors(FileInterceptor('file'))
   async renewContract(
     @Param('contractId') contractId: string,
-    @Body() dto: UploadDocumentDto,
+    @Body() dto: RenewContractDto,
     @User() user: JwtPayload,
     @UploadedFile(
       new ParseFilePipe({
@@ -141,8 +144,47 @@ export class ContractsController {
     )
     file: Express.Multer.File,
   ) {
-    return await this.contractsService.uploadSingleFile(
+    return await this.contractsService.renewContract(
+      contractId,
       dto,
+      user.organizationId,
+      user.userId,
+      file,
+    );
+  }
+
+  @Post(':contractId/receipts')
+  @RequirePermissions('subir_documentos')
+  @ApiOperation({ summary: 'Upload a payment receipt for a contract' })
+  @ApiParam({
+    name: 'contractId',
+    description: 'Contract identifier (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Receipt uploaded' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Contract not found' })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadReceipt(
+    @Param('contractId') contractId: string,
+    @User() user: JwtPayload,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new FileTypeValidator({ fileType: 'application/pdf' })],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return await this.contractsService.uploadReceipt(
+      contractId,
       user.organizationId,
       user.userId,
       file,

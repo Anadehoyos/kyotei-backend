@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,8 +25,11 @@ import { Document } from 'src/entities/api/documents/document.entity';
 import { Currency } from 'src/entities/api/catalogs/currency.entity';
 import { ContractStatus } from 'src/entities/api/catalogs/contract-status.entity';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
+import { UploadType } from '../dto/s3bucket-upload.dto';
+import { RenewContractDto } from '../dto/renew-contract.dto';
 import { User } from 'src/entities/webapp/users/user.entity';
 import { UpdateContractDto } from '../dto/update-contract.dto';
+import { RenewalHistory } from 'src/entities/api/renewal-history/renewal-history.entity';
 
 @Injectable()
 export class ContractsService {
@@ -132,6 +136,40 @@ export class ContractsService {
   // Carga de documentos
   // ---------------------------------------------------------------------------
 
+  private async putPdf(
+    file: Express.Multer.File,
+    organizationId: string,
+    supplierId: string,
+    uploadType: UploadType,
+  ): Promise<{ key: string; sanitizedName: string }> {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('File must be a PDF');
+    }
+    if (file.size > this.maxFileSize) {
+      throw new BadRequestException(
+        `File size must be less than ${Math.floor(this.maxFileSize / (1024 * 1024))}MB`,
+      );
+    }
+
+    const sanitizedName = this.sanitizeFilename(file.originalname);
+    const key = `${organizationId}/${supplierId}/${uploadType}/${uuidv4()}-${sanitizedName}`;
+
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        Metadata: { originalName: file.originalname },
+      }),
+    );
+
+    return { key, sanitizedName };
+  }
+
   async uploadSingleFile(
     dto: UploadDocumentDto,
     organizationId: string,
@@ -139,47 +177,17 @@ export class ContractsService {
     file: Express.Multer.File,
   ) {
     let key: string | undefined;
-    let uploadedToS3 = false;
     try {
-      if (!file) {
-        throw new BadRequestException('No file provided');
-      }
-
-      const isPdf = file.mimetype === 'application/pdf';
-      const isFileSizeValid = file.size <= this.maxFileSize;
-
-      if (!isPdf) {
-        throw new BadRequestException('File must be a PDF');
-      }
-
-      if (!isFileSizeValid) {
-        throw new BadRequestException(
-          `File size must be less than ${Math.floor(this.maxFileSize / (1024 * 1024))}MB`,
-        );
-      }
-
-      const sanitizedName = this.sanitizeFilename(file.originalname);
-
       await this.suppliersService.findOne(organizationId, dto.supplier_id);
 
-      key = `${organizationId}/${dto.supplier_id}/${dto.uploadType}/${uuidv4()}-${sanitizedName}`;
+      const uploaded = await this.putPdf(
+        file,
+        organizationId,
+        dto.supplier_id,
+        dto.uploadType,
+      );
+      key = uploaded.key;
 
-      // 1. Save on S3 Bucket
-      const createCommand = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-        Metadata: {
-          originalName: file.originalname,
-        },
-      });
-
-      await this.client.send(createCommand);
-
-      uploadedToS3 = true;
-
-      // 2. Transaction to save on Contracts and Documents table
       await this.dataSource.transaction(async (manager) => {
         const contract = await manager.save(Contract, {
           title: dto.title,
@@ -195,8 +203,8 @@ export class ContractsService {
 
         await manager.save(Document, {
           contract: { id: contract.id },
-          file_name: sanitizedName,
-          s3_key: key,
+          file_name: uploaded.sanitizedName,
+          s3_key: uploaded.key,
           type: dto.uploadType,
           uploaded_by_id: user_id,
           metadata: {
@@ -207,33 +215,163 @@ export class ContractsService {
         });
       });
     } catch (error) {
-      if (uploadedToS3 && key) {
-        try {
-          await this.deleteFile(key);
-        } catch (deleteError) {
-          console.error(`Error deleting file: ${deleteError}`);
-        }
-      }
-
-      if (error instanceof S3ServiceException) {
-        console.error(`Error uploading file: ${error.message}`);
-        throw new HttpException(
-          'Service unavailable',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(error);
+      await this.rollbackAndRethrow(error, key);
     }
 
     return {
-      url: (await this.getPresignedUrl(key)).url,
+      url: (await this.getPresignedUrl(key!)).url,
       key,
     };
+  }
+
+  async renewContract(
+    contractId: string,
+    dto: RenewContractDto,
+    organizationId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ) {
+    const contract = await this.contractRepository.findOne({
+      where: { id: contractId, organization: { id: organizationId } },
+      relations: ['supplier'],
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    const previousStartDate = contract.start_date;
+    const previousEndDate = contract.end_date;
+    const previousAmount = contract.amount;
+
+    let key: string | undefined;
+    try {
+      const uploaded = await this.putPdf(
+        file,
+        organizationId,
+        contract.supplier.id,
+        UploadType.RENEWAL,
+      );
+      key = uploaded.key;
+
+      await this.dataSource.transaction(async (manager) => {
+        await manager.update(
+          Contract,
+          { id: contract.id },
+          {
+            start_date: new Date(dto.new_start_date),
+            end_date: new Date(dto.new_end_date),
+            amount: dto.new_amount,
+          },
+        );
+
+        await manager.save(RenewalHistory, {
+          contract: { id: contract.id },
+          previous_start_date: previousStartDate,
+          previous_end_date: previousEndDate,
+          new_start_date: new Date(dto.new_start_date),
+          new_end_date: new Date(dto.new_end_date),
+          previous_amount: previousAmount,
+          new_amount: dto.new_amount,
+          reason: dto.reason ?? '',
+          renewed_by_id: userId,
+        });
+
+        await manager.save(Document, {
+          contract: { id: contract.id },
+          file_name: uploaded.sanitizedName,
+          s3_key: uploaded.key,
+          type: UploadType.RENEWAL,
+          uploaded_by_id: userId,
+          metadata: {
+            extension: 'pdf',
+            mime_type: file.mimetype,
+            size_bytes: file.size,
+          },
+        });
+      });
+    } catch (error) {
+      await this.rollbackAndRethrow(error, key);
+    }
+
+    return {
+      url: (await this.getPresignedUrl(key!)).url,
+      key,
+    };
+  }
+
+  async uploadReceipt(
+    contractId: string,
+    organizationId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ) {
+    const contract = await this.contractRepository.findOne({
+      where: { id: contractId, organization: { id: organizationId } },
+      relations: ['supplier'],
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    let key: string | undefined;
+    try {
+      const uploaded = await this.putPdf(
+        file,
+        organizationId,
+        contract.supplier.id,
+        UploadType.RECEIPT,
+      );
+      key = uploaded.key;
+
+      await this.documentRepository.save({
+        contract: { id: contract.id },
+        file_name: uploaded.sanitizedName,
+        s3_key: uploaded.key,
+        type: UploadType.RECEIPT,
+        uploaded_by_id: userId,
+        metadata: {
+          extension: 'pdf',
+          mime_type: file.mimetype,
+          size_bytes: file.size,
+        },
+      });
+    } catch (error) {
+      await this.rollbackAndRethrow(error, key);
+    }
+
+    return {
+      url: (await this.getPresignedUrl(key!)).url,
+      key,
+    };
+  }
+
+  private async rollbackAndRethrow(
+    error: unknown,
+    key: string | undefined,
+  ): Promise<never> {
+    if (key) {
+      try {
+        await this.deleteFile(key);
+      } catch (deleteError) {
+        Logger.error(`Error deleting file: ${deleteError}`);
+      }
+    }
+
+    if (error instanceof S3ServiceException) {
+      Logger.error(`Error uploading file: ${error.message}`);
+      throw new HttpException(
+        'Service unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    if (error instanceof HttpException) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException(error);
   }
 
   async updateContract(
@@ -264,9 +402,6 @@ export class ContractsService {
       changes.end_date = new Date(dto.end_date);
     }
 
-    // Validamos que las relaciones referenciadas existan antes de guardar; de lo
-    // contrario un id inexistente reventaría con un error de FK (500) en vez de
-    // un 404 limpio.
     if (dto.supplier_id !== undefined) {
       await this.suppliersService.findOne(organizationId, dto.supplier_id);
       changes.supplier = { id: dto.supplier_id };
@@ -293,8 +428,6 @@ export class ContractsService {
     this.contractRepository.merge(contract, changes);
     await this.contractRepository.save(contract);
 
-    // Devolvemos el contrato con sus relaciones cargadas (consistente con
-    // GET /contracts), en vez de dejar supplier/currency/status como { id }.
     return this.contractRepository.findOne({
       where: { id: contractId },
       relations: [
@@ -305,22 +438,6 @@ export class ContractsService {
         'status',
       ],
     });
-  }
-
-  async updateContractStatus(
-    contractId: string,
-    statusId: string,
-    organizationId: string,
-  ) {
-    const contract = await this.contractRepository.findOne({
-      where: { id: contractId, organization: { id: organizationId } },
-    });
-
-    if (!contract) {
-      throw new NotFoundException('Contrato no encontrado');
-    }
-
-    return await this.contractRepository.save(contract);
   }
 
   // ---------------------------------------------------------------------------
