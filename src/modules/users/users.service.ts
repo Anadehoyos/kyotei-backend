@@ -13,6 +13,7 @@ import { Role } from 'src/entities/webapp/roles/role.entity';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { ActivationToken } from 'src/entities/webapp/invitation/activation-token.entity';
 import { MailService } from '../mail/service/mail.service';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -92,6 +93,43 @@ export class UsersService {
     );
 
     return { message: 'Invitation sent successfully' };
+  }
+
+  async updateUser(userId: string, dto: UpdateUserDto, organizationId: string) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId, organization_id: organizationId },
+      relations: ['role'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (dto.first_name !== undefined) user.name = dto.first_name;
+    if (dto.last_name !== undefined) user.last_name = dto.last_name;
+    if (dto.email !== undefined) user.email = dto.email;
+    if (dto.is_active !== undefined) user.is_active = dto.is_active;
+
+    if (dto.roleId !== undefined) {
+      const role = await this.rolesService.findById(dto.roleId);
+      if (!role) {
+        throw new NotFoundException('Role not found');
+      }
+      user.role = role;
+    }
+
+    const saved = await this.userRepo.save(user);
+
+    return {
+      id: saved.id,
+      name: saved.name,
+      last_name: saved.last_name,
+      email: saved.email,
+      role: { id: saved.role.id, name: saved.role.name },
+      is_active: saved.is_active,
+      created_at: saved.created_at,
+      updated_at: saved.updated_at,
+    };
   }
 
   async findByOrganizationId(organizationId: string) {
